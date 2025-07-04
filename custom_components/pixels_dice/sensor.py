@@ -2,7 +2,7 @@
 import asyncio
 import logging
 
-from bleak import BleakClient
+from bleak import BleakClient, BLEDevice
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
@@ -79,20 +79,21 @@ class PixelsDiceDevice:
         """Connect to the Pixels die and start listening for notifications."""
         _LOGGER.info(f"Attempting to connect to Pixels die named '{self.die_name}'...")
 
-        device_info: BluetoothServiceInfoBleak | None = None
-        for service_info in bluetooth.async_get_advertisement_data(self.hass, True):
-            if service_info.name == self.die_name:
-                device_info = service_info
+        scanner = bluetooth.async_get_scanner(self.hass)
+        device: BLEDevice | None = None
+        for discovered_device in scanner.discovered_devices:
+            if discovered_device.name == self.die_name:
+                device = discovered_device
                 break
 
-        if device_info is None:
+        if device is None:
             _LOGGER.warning(f"Could not find a die named '{self.die_name}'. Make sure it's on and nearby.")
             self._state = "Not Found"
             self._notify_listeners()
             return
 
-        _LOGGER.info(f"Found die: {device_info.name} ({device_info.address})")
-        self._client = BleakClient(device_info.device)
+        _LOGGER.info(f"Found die: {device.name} ({device.address})")
+        self._client = BleakClient(device)
 
         try:
             await self._client.connect()
