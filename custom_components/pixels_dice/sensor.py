@@ -4,7 +4,6 @@ import logging
 
 from bleak import BleakScanner, BleakClient
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity import DeviceInfo
@@ -34,8 +33,6 @@ async def async_setup_entry(
     async_add_entities([
         PixelsDiceStateSensor(pixels_device),
         PixelsDiceFaceSensor(pixels_device),
-        PixelsDiceConnectButton(pixels_device),
-        PixelsDiceDisconnectButton(pixels_device),
     ])
 
 
@@ -202,30 +199,4 @@ class PixelsDiceFaceSensor(PixelsDiceEntity, SensorEntity):
     def native_value(self):
         """Return the state of the sensor."""
         return self._pixels_device._face
-
-
-class PixelsDiceConnectButton(PixelsDiceEntity, ButtonEntity):
-    """Representation of the Pixels Dice connect button."""
-
-    def __init__(self, pixels_device: PixelsDiceDevice) -> None:
-        super().__init__(pixels_device)
-        self._attr_name = f"{pixels_device.die_name} Connect"
-        self._attr_unique_id = f"{pixels_device.unique_id}_connect_button"
-
-    async def async_press(self) -> None:
-        """Handle the button press."""
-        await self._pixels_device.async_connect_die()
-
-
-class PixelsDiceDisconnectButton(PixelsDiceEntity, ButtonEntity):
-    """Representation of the Pixels Dice disconnect button."""
-
-    def __init__(self, pixels_device: PixelsDiceDevice) -> None:
-        super().__init__(pixels_device)
-        self._attr_name = f"{pixels_device.die_name} Disconnect"
-        self._attr_unique_id = f"{pixels_device.unique_id}_disconnect_button"
-
-    async def async_press(self) -> None:
-        """Handle the button press."""
-        await self._pixels_device.async_disconnect_die()
 
