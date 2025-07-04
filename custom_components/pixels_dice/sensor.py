@@ -5,12 +5,13 @@ import logging
 from bleak import BleakClient, BLEDevice
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.components.button import ButtonEntity
+from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.components import bluetooth
-from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
+from homeassistant.components.bluetooth import BluetoothServiceInfoBleak, BluetoothChange
 
 from .const import DOMAIN
 
@@ -38,6 +39,7 @@ async def async_setup_entry(
         PixelsDiceStateSensor(pixels_device),
         PixelsDiceFaceSensor(pixels_device),
         PixelsDiceBatterySensor(pixels_device),
+        PixelsDicePresenceSensor(pixels_device),
     ])
 
 
@@ -52,7 +54,35 @@ class PixelsDiceDevice:
         self._state = None
         self._face = None
         self._battery_level = None
+        self._is_present = False # New attribute for presence
         self._listeners = []
+        self._unsub_bluetooth_tracker = None # To store the unsubscribe callback
+
+    async def async_added_to_hass(self) -> None:
+        """Run when this device has been added to Home Assistant."""
+        # Register a Bluetooth callback to track presence
+        self._unsub_bluetooth_tracker = bluetooth.async_track_service_info(
+            self.hass,
+            self._bluetooth_service_info_callback,
+            bluetooth.BluetoothCallbackMatcher(local_name=self.die_name),
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Run when this device is being removed from Home Assistant."""
+        if self._unsub_bluetooth_tracker:
+            self._unsub_bluetooth_tracker()
+
+    def _bluetooth_service_info_callback(self, service_info: BluetoothServiceInfoBleak, change: BluetoothChange) -> None:
+        """Callback for Bluetooth service info updates."""
+        _LOGGER.debug(f"Bluetooth service info callback for {self.die_name}: {change}")
+        if change == BluetoothChange.ADVERTISEMENT_ADDED or change == BluetoothChange.ADVERTISEMENT_UPDATED:
+            if not self._is_present:
+                self._is_present = True
+                self._notify_listeners()
+        elif change == BluetoothChange.ADVERTISEMENT_REMOVED:
+            if self._is_present:
+                self._is_present = False
+                self._notify_listeners()
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -241,5 +271,20 @@ class PixelsDiceBatterySensor(PixelsDiceEntity, SensorEntity):
     def native_value(self):
         """Return the state of the sensor."""
         return self._pixels_device._battery_level
+
+
+class PixelsDicePresenceSensor(PixelsDiceEntity, BinarySensorEntity):
+    """Representation of the Pixels Dice presence sensor."""
+
+    def __init__(self, pixels_device: PixelsDiceDevice) -> None:
+        super().__init__(pixels_device)
+        self._attr_name = f"{pixels_device.die_name} Presence"
+        self._attr_unique_id = f"{pixels_device.unique_id}_presence"
+        self._attr_device_class = "presence"
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return true if the binary sensor is on."""
+        return self._pixels_device._is_present
 
 
