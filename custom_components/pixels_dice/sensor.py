@@ -4,8 +4,10 @@ import logging
 
 from bleak import BleakScanner, BleakClient
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
@@ -24,76 +26,67 @@ async def async_setup_entry(
     """Set up the Pixels Dice sensor platform."""
     _LOGGER.debug("Setting up Pixels Dice sensor platform from config entry")
     die_name = config_entry.data["name"]
-    sensor = PixelsDiceSensor(die_name)
-    async_add_entities([sensor])
+    unique_id = config_entry.unique_id
 
-    async def handle_connect(call):
-        entity_id = call.data.get("entity_id")
-        if entity_id:
-            # Extract unique_id from entity_id (e.g., sensor.pixels_dice_brian_pd6 -> pixels_dice_brian_pd6)
-            unique_id = entity_id.split('.')[-1]
-            sensor_entity = hass.data[DOMAIN].get(unique_id)
-            if sensor_entity:
-                await sensor_entity.async_connect_die()
-            else:
-                _LOGGER.warning(f"Could not find sensor entity for {entity_id} (unique_id: {unique_id})")
-        else:
-            _LOGGER.error("No entity_id provided for connect service.")
+    pixels_device = PixelsDiceDevice(hass, die_name, unique_id)
+    hass.data.setdefault(DOMAIN, {})[unique_id] = pixels_device
 
-    async def handle_disconnect(call):
-        entity_id = call.data.get("entity_id")
-        if entity_id:
-            unique_id = entity_id.split('.')[-1]
-            sensor_entity = hass.data[DOMAIN].get(unique_id)
-            if sensor_entity:
-                await sensor_entity.async_disconnect_die()
-            else:
-                _LOGGER.warning(f"Could not find sensor entity for {entity_id} (unique_id: {unique_id})")
-        else:
-            _LOGGER.error("No entity_id provided for disconnect service.")
-
-    hass.services.async_register(DOMAIN, "connect", handle_connect)
-    hass.services.async_register(DOMAIN, "disconnect", handle_disconnect)
+    async_add_entities([
+        PixelsDiceStateSensor(pixels_device),
+        PixelsDiceFaceSensor(pixels_device),
+        PixelsDiceConnectButton(pixels_device),
+        PixelsDiceDisconnectButton(pixels_device),
+    ])
 
 
-class PixelsDiceSensor(SensorEntity):
-    """Representation of a Pixels Dice sensor."""
+class PixelsDiceDevice:
+    """Manages the Pixels Dice BLE connection and state."""
 
-    def __init__(self, die_name: str) -> None:
-        """Initialize the sensor."""
-        self._die_name = die_name
-        self._state = None
-        self._address = None
+    def __init__(self, hass: HomeAssistant, die_name: str, unique_id: str) -> None:
+        self.hass = hass
+        self.die_name = die_name
+        self.unique_id = unique_id
         self._client = None
-        self._attr_name = f"Pixels Dice {die_name}"
-        self._attr_unique_id = f"pixels_dice_{die_name.lower().replace(' ', '_')}"
+        self._state = None
+        self._face = None
+        self._listeners = []
 
     @property
-    def native_value(self):
-        """Return the state of the sensor."""
-        return self._state
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.unique_id)},
+            name=self.die_name,
+            manufacturer="Pixels Dice",
+            model="Bluetooth Dice",
+        )
 
-    async def async_added_to_hass(self) -> None:
-        """Run when this entity has been added to Home Assistant."""
-        _LOGGER.debug(f"Pixels Dice sensor {self.name} added to Home Assistant")
-        self.hass.data.setdefault(DOMAIN, {})[self.unique_id] = self
+    def register_listener(self, listener) -> None:
+        """Register an entity to be updated on state changes."""
+        self._listeners.append(listener)
 
-    async def async_will_remove_from_hass(self) -> None:
-        """Run when this entity is being removed from Home Assistant."""
-        _LOGGER.debug(f"Pixels Dice sensor {self.name} will be removed from Home Assistant")
-        await self.async_disconnect_die()
+    def unregister_listener(self, listener) -> None:
+        """Unregister an entity."""
+        if listener in self._listeners:
+            self._listeners.remove(listener)
+
+    def _notify_listeners(self) -> None:
+        """Notify all registered listeners of a state change."""
+        for listener in self._listeners:
+            listener.schedule_update_ha_state(True)
 
     async def async_connect_die(self):
         """Connect to the Pixels die and start listening for notifications."""
-        _LOGGER.info(f"Scanning for a Pixels die named '{self._die_name}'...")
-        device = await BleakScanner.find_device_by_name(self._die_name)
+        _LOGGER.info(f"Scanning for a Pixels die named '{self.die_name}'...")
+        device = await BleakScanner.find_device_by_name(self.die_name)
 
         if device is None:
-            _LOGGER.warning(f"Could not find a die named '{self._die_name}'. Make sure it's on and nearby.")
+            _LOGGER.warning(f"Could not find a die named '{self.die_name}'. Make sure it's on and nearby.")
+            self._state = "Not Found"
+            self._notify_listeners()
             return
 
         _LOGGER.info(f"Found die: {device.name} ({device.address})")
-        self._address = device.address
         self._client = BleakClient(device)
 
         try:
@@ -101,11 +94,16 @@ class PixelsDiceSensor(SensorEntity):
             if self._client.is_connected:
                 _LOGGER.info("Successfully connected to the die.")
                 await self._client.start_notify(PIXEL_NOTIFY_CHAR_UUID, self._handle_roll)
+                self._state = "Connected"
                 _LOGGER.info("Listening for rolls...")
             else:
                 _LOGGER.error("Failed to connect to the die.")
+                self._state = "Connection Failed"
         except Exception as e:
             _LOGGER.error(f"Error connecting to or communicating with die: {e}")
+            self._state = "Error"
+        finally:
+            self._notify_listeners()
 
     async def async_disconnect_die(self):
         """Disconnect from the Pixels die."""
@@ -113,13 +111,15 @@ class PixelsDiceSensor(SensorEntity):
             try:
                 await self._client.stop_notify(PIXEL_NOTIFY_CHAR_UUID)
                 await self._client.disconnect()
-                _LOGGER.info(f"Disconnected from {self._die_name}")
+                _LOGGER.info(f"Disconnected from {self.die_name}")
                 self._state = "Disconnected"
-                self.schedule_update_ha_state()
+                self._face = None
             except Exception as e:
                 _LOGGER.error(f"Error disconnecting from die: {e}")
+            finally:
+                self._notify_listeners()
         else:
-            _LOGGER.info(f"Die {self._die_name} is not connected.")
+            _LOGGER.info(f"Die {self.die_name} is not connected.")
 
     def _handle_roll(self, sender: int, data: bytearray):
         """Callback for handling roll notifications from the die."""
@@ -135,6 +135,7 @@ class PixelsDiceSensor(SensorEntity):
 
             if state_code == 0x01:  # State: onFace
                 self._state = f"Landed: {face + 1}"
+                self._face = face + 1
                 _LOGGER.info(f"--- Die landed! Final face is: {face + 1} ---")
             elif state_code == 0x03:  # State: handling
                 self._state = "Handling"
@@ -145,7 +146,86 @@ class PixelsDiceSensor(SensorEntity):
             else:
                 self._state = f"Unknown state: {data.hex()}"
                 _LOGGER.warning(f"Received unknown roll state: {data.hex()}")
-            self.schedule_update_ha_state()
+            self._notify_listeners()
         else:
             _LOGGER.debug(f"Received unhandled message type: {data.hex()}")
+
+
+class PixelsDiceEntity:
+    """Base class for Pixels Dice entities."""
+
+    def __init__(self, pixels_device: PixelsDiceDevice) -> None:
+        self._pixels_device = pixels_device
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return self._pixels_device.device_info
+
+    @property
+    def should_poll(self) -> bool:
+        """No polling needed."""
+        return False
+
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks when entity is added."""
+        self._pixels_device.register_listener(self)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Unregister callbacks when entity is removed."""
+        self._pixels_device.unregister_listener(self)
+
+
+class PixelsDiceStateSensor(PixelsDiceEntity, SensorEntity):
+    """Representation of the Pixels Dice state sensor."""
+
+    def __init__(self, pixels_device: PixelsDiceDevice) -> None:
+        super().__init__(pixels_device)
+        self._attr_name = f"{pixels_device.die_name} State"
+        self._attr_unique_id = f"{pixels_device.unique_id}_state"
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor."""
+        return self._pixels_device._state
+
+
+class PixelsDiceFaceSensor(PixelsDiceEntity, SensorEntity):
+    """Representation of the Pixels Dice face sensor."""
+
+    def __init__(self, pixels_device: PixelsDiceDevice) -> None:
+        super().__init__(pixels_device)
+        self._attr_name = f"{pixels_device.die_name} Face"
+        self._attr_unique_id = f"{pixels_device.unique_id}_face"
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor."""
+        return self._pixels_device._face
+
+
+class PixelsDiceConnectButton(PixelsDiceEntity, ButtonEntity):
+    """Representation of the Pixels Dice connect button."""
+
+    def __init__(self, pixels_device: PixelsDiceDevice) -> None:
+        super().__init__(pixels_device)
+        self._attr_name = f"{pixels_device.die_name} Connect"
+        self._attr_unique_id = f"{pixels_device.unique_id}_connect_button"
+
+    async def async_press(self) -> None:
+        """Handle the button press."""
+        await self._pixels_device.async_connect_die()
+
+
+class PixelsDiceDisconnectButton(PixelsDiceEntity, ButtonEntity):
+    """Representation of the Pixels Dice disconnect button."""
+
+    def __init__(self, pixels_device: PixelsDiceDevice) -> None:
+        super().__init__(pixels_device)
+        self._attr_name = f"{pixels_device.die_name} Disconnect"
+        self._attr_unique_id = f"{pixels_device.unique_id}_disconnect_button"
+
+    async def async_press(self) -> None:
+        """Handle the button press."""
+        await self._pixels_device.async_disconnect_die()
 
