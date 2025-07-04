@@ -79,17 +79,20 @@ class PixelsDiceDevice:
         """Connect to the Pixels die and start listening for notifications."""
         _LOGGER.info(f"Attempting to connect to Pixels die named '{self.die_name}'...")
 
-        # Use Home Assistant's Bluetooth API to get the device
-        device: BluetoothServiceInfoBleak | None = bluetooth.async_get_service_info(self.hass, self.die_name)
+        device_info: BluetoothServiceInfoBleak | None = None
+        for service_info in bluetooth.async_get_advertisement_data(self.hass, True):
+            if service_info.name == self.die_name:
+                device_info = service_info
+                break
 
-        if device is None:
+        if device_info is None:
             _LOGGER.warning(f"Could not find a die named '{self.die_name}'. Make sure it's on and nearby.")
             self._state = "Not Found"
             self._notify_listeners()
             return
 
-        _LOGGER.info(f"Found die: {device.name} ({device.address})")
-        self._client = BleakClient(device.device)
+        _LOGGER.info(f"Found die: {device_info.name} ({device_info.address})")
+        self._client = BleakClient(device_info.device)
 
         try:
             await self._client.connect()
