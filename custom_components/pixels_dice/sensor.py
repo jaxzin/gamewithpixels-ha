@@ -29,13 +29,14 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Pixels Dice sensor platform."""
     _LOGGER.debug("Setting up Pixels Dice sensor platform from config entry")
+    print("async_setup_entry called")
     die_name = config_entry.data["name"]
     unique_id = config_entry.unique_id
 
     pixels_device = PixelsDiceDevice(hass, die_name, unique_id)
     hass.data.setdefault(DOMAIN, {})[unique_id] = pixels_device
 
-    async_add_entities([
+    await async_add_entities([
         PixelsDiceStateSensor(pixels_device),
         PixelsDiceFaceSensor(pixels_device),
         PixelsDiceBatterySensor(pixels_device),

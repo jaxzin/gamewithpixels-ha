@@ -7,13 +7,24 @@ dependencies = [
     "bleak==0.22.3", # Matching the version in manifest.json
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest",
-    "pytest-homeassistant-custom-component",
-    "pytest-asyncio",
-]
-
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+pytest_plugins = ["pytest_homeassistant_custom_component"]
+
+[tool.pytest.ini_options]
+pythonpath = [".", "custom_components"]
+addopts = "--cov=custom_components.pixels_dice --cov-report=term-missing"
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "aiousbwatcher>=1.1.1",
+    "mock>=5.2.0",
+    "pyserial>=3.5",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
+    "pytest-homeassistant-custom-component>=0.13.236",
+    "serial>=0.0.97",
+]
