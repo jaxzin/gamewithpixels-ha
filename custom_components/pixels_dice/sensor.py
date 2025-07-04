@@ -19,6 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 # The specific Bluetooth service and characteristic UUIDs for Pixels dice.
 PIXEL_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 PIXEL_NOTIFY_CHAR_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
+BATTERY_LEVEL_CHAR_UUID = "00002a19-0000-1000-8000-00805f9b34fb"
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -36,6 +37,7 @@ async def async_setup_entry(
     async_add_entities([
         PixelsDiceStateSensor(pixels_device),
         PixelsDiceFaceSensor(pixels_device),
+        PixelsDiceBatterySensor(pixels_device),
     ])
 
 
@@ -49,6 +51,7 @@ class PixelsDiceDevice:
         self._client = None
         self._state = None
         self._face = None
+        self._battery_level = None
         self._listeners = []
 
     @property
@@ -102,6 +105,7 @@ class PixelsDiceDevice:
                 await self._client.start_notify(PIXEL_NOTIFY_CHAR_UUID, self._handle_roll)
                 self._state = "Connected"
                 _LOGGER.info("Listening for rolls...")
+                await self.async_read_battery_level()
             else:
                 _LOGGER.error("Failed to connect to the die.")
                 self._state = "Connection Failed"
@@ -110,6 +114,18 @@ class PixelsDiceDevice:
             self._state = "Error"
         finally:
             self._notify_listeners()
+
+    async def async_read_battery_level(self):
+        """Read the battery level from the die."""
+        if self._client and self._client.is_connected:
+            try:
+                battery_level_data = await self._client.read_gatt_char(BATTERY_LEVEL_CHAR_UUID)
+                self._battery_level = int(battery_level_data[0])
+                _LOGGER.debug(f"Battery level: {self._battery_level}%")
+            except Exception as e:
+                _LOGGER.error(f"Error reading battery level: {e}")
+        else:
+            _LOGGER.warning("Cannot read battery level, die is not connected.")
 
     async def async_disconnect_die(self):
         """Disconnect from the Pixels die."""
@@ -208,4 +224,22 @@ class PixelsDiceFaceSensor(PixelsDiceEntity, SensorEntity):
     def native_value(self):
         """Return the state of the sensor."""
         return self._pixels_device._face
+
+
+class PixelsDiceBatterySensor(PixelsDiceEntity, SensorEntity):
+    """Representation of the Pixels Dice battery sensor."""
+
+    def __init__(self, pixels_device: PixelsDiceDevice) -> None:
+        super().__init__(pixels_device)
+        self._attr_name = f"{pixels_device.die_name} Battery"
+        self._attr_unique_id = f"{pixels_device.unique_id}_battery"
+        self._attr_native_unit_of_measurement = "%"
+        self._attr_device_class = "battery"
+        self._attr_state_class = "measurement"
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor."""
+        return self._pixels_device._battery_level
+
 
