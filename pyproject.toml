@@ -1,0 +1,19 @@
+[project]
+name = "gamewithpixels-ha"
+version = "1.0.0"
+
+# Core dependencies for the Home Assistant integration
+dependencies = [
+    "bleak==0.22.3", # Matching the version in manifest.json
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-homeassistant-custom-component",
+    "pytest-asyncio",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
