@@ -63,11 +63,18 @@ class PixelsDiceDevice:
     async def async_added_to_hass(self) -> None:
         """Run when this device has been added to Home Assistant."""
         # Register a Bluetooth callback to track presence
-        self._unsub_bluetooth_tracker = bluetooth.async_track_service_info(
+        self._unsub_bluetooth_tracker = bluetooth.async_register_callback(
             self.hass,
             self._bluetooth_service_info_callback,
             bluetooth.BluetoothCallbackMatcher(local_name=self.die_name),
         )
+
+        # If we have already seen the die, mark it present immediately
+        if bluetooth.async_last_service_info(
+            self.hass,
+            bluetooth.BluetoothCallbackMatcher(local_name=self.die_name),
+        ):
+            self._is_present = True
 
     async def async_will_remove_from_hass(self) -> None:
         """Run when this device is being removed from Home Assistant."""

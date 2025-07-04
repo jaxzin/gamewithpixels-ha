@@ -27,9 +27,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        pixels_device = hass.data[DOMAIN].pop(entry.unique_id, None)
+        pixels_device = hass.data[DOMAIN].get(entry.unique_id)
         if pixels_device:
             await pixels_device.async_will_remove_from_hass()
+            hass.data[DOMAIN].pop(entry.unique_id, None)
 
     return unload_ok
 
