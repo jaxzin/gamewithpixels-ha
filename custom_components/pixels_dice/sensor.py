@@ -29,12 +29,13 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Pixels Dice sensor platform."""
     _LOGGER.debug("Setting up Pixels Dice sensor platform from config entry")
-    print("async_setup_entry called")
     die_name = config_entry.data["name"]
     unique_id = config_entry.unique_id
 
     pixels_device = PixelsDiceDevice(hass, die_name, unique_id)
     hass.data.setdefault(DOMAIN, {})[unique_id] = pixels_device
+
+    await pixels_device.async_added_to_hass()
 
     await async_add_entities([
         PixelsDiceStateSensor(pixels_device),
@@ -62,11 +63,18 @@ class PixelsDiceDevice:
     async def async_added_to_hass(self) -> None:
         """Run when this device has been added to Home Assistant."""
         # Register a Bluetooth callback to track presence
-        self._unsub_bluetooth_tracker = bluetooth.async_track_service_info(
+        self._unsub_bluetooth_tracker = bluetooth.async_register_callback(
             self.hass,
             self._bluetooth_service_info_callback,
             bluetooth.BluetoothCallbackMatcher(local_name=self.die_name),
         )
+
+        # If we have already seen the die, mark it present immediately
+        if bluetooth.async_last_service_info(
+            self.hass,
+            bluetooth.BluetoothCallbackMatcher(local_name=self.die_name),
+        ):
+            self._is_present = True
 
     async def async_will_remove_from_hass(self) -> None:
         """Run when this device is being removed from Home Assistant."""

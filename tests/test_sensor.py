@@ -23,6 +23,7 @@ def mock_pixels_dice_device():
     mock_device.async_connect_die = AsyncMock(side_effect=lambda: setattr(mock_device, '_state', 'Connected'))
     mock_device.async_disconnect_die = AsyncMock(side_effect=lambda: setattr(mock_device, '_state', 'Disconnected'))
     mock_device.async_read_battery_level = AsyncMock()
+    mock_device.async_added_to_hass = AsyncMock()
     mock_device._notify_listeners = MagicMock()
     return mock_device
 
@@ -65,6 +66,39 @@ async def test_setup_entry(hass: HomeAssistant, mock_pixels_dice_device):
             # Assert that entities are added (this is a simplified check)
             assert len(hass.states.async_all(SENSOR_DOMAIN)) == 4 # State, Face, Battery, Presence
             assert len(hass.states.async_all(BUTTON_DOMAIN)) == 0 # Buttons are in button.py
+
+
+@pytest.mark.asyncio
+async def test_setup_entry_calls_added_before_entities(hass: HomeAssistant, mock_pixels_dice_device):
+    """Ensure async_added_to_hass runs before adding entities."""
+    config_entry = ConfigEntry(
+        version=1,
+        domain=DOMAIN,
+        title="Test Die",
+        data={"name": "Test Die"},
+        source="user",
+        unique_id="test_die_unique_id",
+        discovery_keys=(),
+        minor_version=1,
+        options={},
+        subentries_data={}
+    )
+    await hass.config_entries.async_add(config_entry)
+
+    call_order = []
+
+    async def mock_add_entities(entities):
+        call_order.append("add")
+
+    mock_pixels_dice_device.async_added_to_hass.side_effect = lambda: call_order.append("added")
+
+    with patch(
+        "custom_components.pixels_dice.sensor.PixelsDiceDevice",
+        return_value=mock_pixels_dice_device,
+    ), patch("homeassistant.components.bluetooth.async_setup", return_value=True):
+        await async_setup_entry(hass, config_entry, mock_add_entities)
+
+    assert call_order == ["added", "add"]
 
 
 @pytest.mark.asyncio
@@ -152,3 +186,21 @@ async def test_pixels_dice_device_disconnect(hass: HomeAssistant, mock_pixels_di
         assert pixels_device._state == "Disconnected"
         mock_bleak_client.stop_notify.assert_called_once()
         mock_bleak_client.disconnect.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_presence_immediate_on_known_service(hass: HomeAssistant):
+    """PixelsDiceDevice sets presence if service info already exists."""
+    device = PixelsDiceDevice(hass, "Test Die", "test_die_unique_id")
+
+    with patch(
+        "custom_components.pixels_dice.sensor.bluetooth.async_register_callback",
+        return_value=lambda: None,
+    ) as mock_register, patch(
+        "custom_components.pixels_dice.sensor.bluetooth.async_last_service_info",
+        return_value=MagicMock(),
+    ):
+        await device.async_added_to_hass()
+
+    mock_register.assert_called_once()
+    assert device._is_present

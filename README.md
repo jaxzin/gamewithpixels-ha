@@ -5,6 +5,7 @@ This custom component integrates Pixels Dice with Home Assistant, allowing you t
 ## Features
 
 *   **Sensor Entity:** Provides a sensor that updates with the current roll state of your Pixels Dice (e.g., "Landed: 1", "Rolling", "Handling").
+*   **Presence Binary Sensor:** Indicates when the dice is advertising over Bluetooth. It turns `on` when detected nearby and `off` when out of range.
 *   **Connect/Disconnect Services:** Offers Home Assistant services to manually connect to and disconnect from your Pixels Dice, helping to conserve battery life.
 
 ## Installation (HACS)
@@ -58,6 +59,12 @@ Connects to the specified Pixels Dice.
 ```yaml
 entity_id: sensor.pixels_dice_brian_pd6 # Replace with your sensor's entity ID
 ```
+
+## Presence Sensor
+
+The integration creates a binary sensor named after your die, such as `Brian PD6 Presence`.
+The sensor is `on` while Bluetooth advertisements from the die are detected and
+turns `off` once those advertisements stop.
 
 ### `pixels_dice.disconnect`
 
