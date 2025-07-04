@@ -1,0 +1,9 @@
+{
+  "domain": "pixels_dice",
+  "name": "Pixels Dice",
+  "documentation": "https://github.com/jaxzin/gamewithpixels-ha",
+  "dependencies": [],
+  "codeowners": ["@jaxzin"],
+  "requirements": ["bleak==0.21.1"],
+  "version": "0.0.1"
+}
