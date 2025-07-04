@@ -5,10 +5,10 @@ import logging
 from bleak import BleakScanner, BleakClient
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-from . import DOMAIN
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -16,19 +16,45 @@ _LOGGER = logging.getLogger(__name__)
 PIXEL_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 PIXEL_NOTIFY_CHAR_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 
-async def async_setup_platform(
+async def async_setup_entry(
     hass: HomeAssistant,
-    config: ConfigType,
-    add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Pixels Dice sensor platform."""
-    _LOGGER.debug("Setting up Pixels Dice sensor platform")
-    if "name" in config:
-        die_name = config["name"]
-        add_entities([PixelsDiceSensor(die_name)])
-    else:
-        _LOGGER.error("No die name provided in configuration.")
+    _LOGGER.debug("Setting up Pixels Dice sensor platform from config entry")
+    die_name = config_entry.data["name"]
+    sensor = PixelsDiceSensor(die_name)
+    async_add_entities([sensor])
+
+    async def handle_connect(call):
+        entity_id = call.data.get("entity_id")
+        if entity_id:
+            # Extract unique_id from entity_id (e.g., sensor.pixels_dice_brian_pd6 -> pixels_dice_brian_pd6)
+            unique_id = entity_id.split('.')[-1]
+            sensor_entity = hass.data[DOMAIN].get(unique_id)
+            if sensor_entity:
+                await sensor_entity.async_connect_die()
+            else:
+                _LOGGER.warning(f"Could not find sensor entity for {entity_id} (unique_id: {unique_id})")
+        else:
+            _LOGGER.error("No entity_id provided for connect service.")
+
+    async def handle_disconnect(call):
+        entity_id = call.data.get("entity_id")
+        if entity_id:
+            unique_id = entity_id.split('.')[-1]
+            sensor_entity = hass.data[DOMAIN].get(unique_id)
+            if sensor_entity:
+                await sensor_entity.async_disconnect_die()
+            else:
+                _LOGGER.warning(f"Could not find sensor entity for {entity_id} (unique_id: {unique_id})")
+        else:
+            _LOGGER.error("No entity_id provided for disconnect service.")
+
+    hass.services.async_register(DOMAIN, "connect", handle_connect)
+    hass.services.async_register(DOMAIN, "disconnect", handle_disconnect)
+
 
 class PixelsDiceSensor(SensorEntity):
     """Representation of a Pixels Dice sensor."""
