@@ -5,6 +5,10 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_run:
+    workflows: ["Prepare Release"]
+    types:
+      - completed
 
 jobs:
   build:
