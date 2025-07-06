@@ -21,6 +21,8 @@ from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak, BluetoothChange, BluetoothScanningMode
 import struct
 
+from homeassistant.helpers.entity import EntityCategory
+
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,6 +58,7 @@ async def async_setup_entry(
         PixelsDiceBatteryLevelSensor(pixels_device),
         PixelsDiceBatteryStateSensor(pixels_device),
         PixelsDiceLastSeenSensor(pixels_device),
+        PixelsDiceRSSISensor(pixels_device),
     ])
     if inspect.isawaitable(result):
         await result
@@ -74,6 +77,7 @@ class PixelsDiceDevice:
         self._battery_level = None
         self._battery_state = None
         self._last_seen = None
+        self._rssi: int | None = None
         self._listeners = []
         self._unsub_bluetooth_tracker = None # To store the unsubscribe callback
 
@@ -110,6 +114,8 @@ class PixelsDiceDevice:
         _LOGGER.debug(f"Bluetooth service info callback for {self.die_name}: {change}")
         if change == BluetoothChange.ADVERTISEMENT:
             self._last_seen = datetime.now(timezone.utc)
+            # update RSSI from advertisement
+            self._rssi = service_info.rssi
             self._notify_listeners()
 
     @property
@@ -320,6 +326,7 @@ class PixelsDiceBatteryLevelSensor(PixelsDiceEntity, SensorEntity):
         self._attr_native_unit_of_measurement = "%"
         self._attr_device_class = SensorDeviceClass.BATTERY
         self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def native_value(self):
@@ -333,6 +340,7 @@ class PixelsDiceBatteryStateSensor(PixelsDiceEntity, TextEntity):
         super().__init__(pixels_device)
         self._attr_name = f"{pixels_device.die_name} Battery State"
         self._attr_unique_id = f"{pixels_device.unique_id}_battery_state"
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def native_value(self):
@@ -353,8 +361,26 @@ class PixelsDiceLastSeenSensor(PixelsDiceEntity, SensorEntity):
         self._attr_device_class = SensorDeviceClass.TIMESTAMP
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_should_poll = False
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def native_value(self):
         """Return the state of the sensor."""
         return self._pixels_device._last_seen
+class PixelsDiceRSSISensor(PixelsDiceEntity, SensorEntity):
+    """RSSI signal strength sensor for Pixels Dice."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
+    _attr_native_unit_of_measurement = "dBm"
+
+    def __init__(self, pixels_device: PixelsDiceDevice) -> None:
+        super().__init__(pixels_device)
+        self._attr_name = f"{pixels_device.die_name} RSSI"
+        self._attr_unique_id = f"{pixels_device.unique_id}_rssi"
+        self._pixels_device = pixels_device
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the last-seen RSSI value."""
+        return self._pixels_device._rssi
