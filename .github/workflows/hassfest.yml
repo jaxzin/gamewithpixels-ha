@@ -7,19 +7,16 @@ on:
   pull_request:
     branches:
       - main
+  pull_request_target:
+    types: [opened, synchronize]
   schedule:
     - cron: "0 0 * * *"
-  create:
 
 jobs:
   validate:
-    # Run on push/pr to main, or on creation of a release branch
-    if: github.event_name != 'create' || (github.event.ref_type == 'branch' && startsWith(github.event.ref, 'release/'))
     runs-on: "ubuntu-latest"
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          # On create events, checkout the new branch
-          ref: ${{ github.event_name == 'create' && github.event.ref || '' }}
+          ref: ${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || '' }}
       - uses: home-assistant/actions/hassfest@master

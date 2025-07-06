@@ -63,6 +63,7 @@ jobs:
           sed -i "s/^version = .*/version = \"${{ steps.version.outputs.number }}\"/" pyproject.toml
 
       - name: Create Pull Request
+        id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
