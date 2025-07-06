@@ -9,23 +9,17 @@ on:
       - main
   schedule:
     - cron: "0 0 * * *"
-  workflow_run:
-    workflows: ["Prepare Release"]
-    types:
-      - completed
+  create:
 
 jobs:
   validate:
+    # Run on push/pr to main, or on creation of a release branch
+    if: github.event_name != 'create' || (github.event.ref_type == 'branch' && startsWith(github.event.ref, 'release/'))
     runs-on: "ubuntu-latest"
     steps:
-      - name: Checkout for push/pr
-        if: github.event_name != 'workflow_run'
-        uses: actions/checkout@v4
-
-      - name: Checkout code from triggering workflow
-        if: github.event_name == 'workflow_run'
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.event.workflow_run.head_repository.full_name }}
-          ref: ${{ github.event.workflow_run.head_sha }}
+          # On create events, checkout the new branch
+          ref: ${{ github.event_name == 'create' && github.event.ref || '' }}
       - uses: home-assistant/actions/hassfest@master
