@@ -1,6 +1,6 @@
 [project]
 name = "gamewithpixels-ha"
-version = "1.1.0"
+version = "1.2.0b1"
 requires-python = ">=3.13"    # so uv won’t warn
 
 # Core dependencies for the Home Assistant integration
