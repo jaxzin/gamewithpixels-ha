@@ -1,14 +1,12 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from homeassistant.core import HomeAssistant
+import pytest
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
-from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.core import HomeAssistant
 
 from custom_components.pixels_dice.const import DOMAIN
 from custom_components.pixels_dice.sensor import PixelsDiceDevice, async_setup_entry
+
 
 @pytest.fixture(autouse=True)
 def mock_pixels_dice_device():
@@ -75,12 +73,9 @@ async def test_pixels_dice_device_connect_success(hass: HomeAssistant, mock_pixe
         # Stub out the battery‐read on *this* instance:
         pixels_device.async_read_battery_level = AsyncMock(return_value=1)
 
-        die_name = "Test Die"
-        unique_id = "test_die_unique_id"
-
         # Mock a discovered BLE device
         mock_ble_device = MagicMock()
-        mock_ble_device.name = die_name
+        mock_ble_device.name = "Test Die"
         mock_ble_device.address = "AA:BB:CC:DD:EE:FF"
 
         mock_scanner = MagicMock()
@@ -110,16 +105,13 @@ async def test_pixels_dice_device_connect_not_found(hass: HomeAssistant, mock_pi
     with patch("custom_components.pixels_dice.sensor.PixelsDiceDevice", return_value=mock_pixels_dice_device):
         pixels_device = PixelsDiceDevice(hass, "Non Existent Die", "non_existent_die_unique_id", False)
 
-        die_name = "Non Existent Die"
-        unique_id = "non_existent_die_unique_id"
-
         mock_scanner = MagicMock()
         mock_scanner.discovered_devices = [] # No devices found
 
         with patch("custom_components.pixels_dice.sensor.bluetooth.async_get_scanner", return_value=mock_scanner):
             with patch("homeassistant.components.bluetooth.async_setup", return_value=True):
                 await pixels_device.async_connect_die()
-        
+
         # Manually set the state for this specific test case
         pixels_device._state = "Not Found"
 
@@ -134,9 +126,6 @@ async def test_pixels_dice_device_disconnect(hass: HomeAssistant, mock_pixels_di
     """Test disconnection of PixelsDiceDevice."""
     with patch("custom_components.pixels_dice.sensor.PixelsDiceDevice", return_value=mock_pixels_dice_device):
         pixels_device = PixelsDiceDevice(hass, "Test Die", "test_die_unique_id", False)
-
-        die_name = "Test Die"
-        unique_id = "test_die_unique_id"
 
         mock_bleak_client = AsyncMock()
         mock_bleak_client.is_connected = True
@@ -172,9 +161,10 @@ async def test_presence_immediate_on_known_service(hass: HomeAssistant):
 
 def test_rssi_sensor_native_value(mock_pixels_dice_device):
     """Test that the RSSI sensor reports the device's RSSI and metadata."""
-    from custom_components.pixels_dice.sensor import PixelsDiceRSSISensor
-    from homeassistant.helpers.entity import EntityCategory
     from homeassistant.components.sensor import SensorDeviceClass
+    from homeassistant.helpers.entity import EntityCategory
+
+    from custom_components.pixels_dice.sensor import PixelsDiceRSSISensor
 
     # Given a mock device with a specific RSSI value
     mock_pixels_dice_device._rssi = -72

@@ -45,8 +45,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]
-# Disallow all absolute imports from `custom_components.pixels_dice`
-ban-relative-imports = "all"
+# This section is intentionally left blank to allow relative imports.
+# The default behavior of ruff is to allow them, which is what we want for Home Assistant custom components.
 
 [dependency-groups]
 dev = [

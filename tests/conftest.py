@@ -1,7 +1,8 @@
-import pytest
-from types import SimpleNamespace
 import sys
 import types
+from types import SimpleNamespace
+
+import pytest
 
 # Provide stub aiousbwatcher module so Home Assistant usb component can import it
 aiousbwatcher = types.ModuleType("aiousbwatcher")
@@ -25,7 +26,6 @@ class ListPortInfo:
     pass
 serial.tools.list_ports_common.ListPortInfo = ListPortInfo
 sys.modules.setdefault("serial.tools.list_ports_common", serial.tools.list_ports_common)
-import asyncio
 
 class FakeStateMachine:
     def __init__(self):

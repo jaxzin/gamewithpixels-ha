@@ -1,27 +1,27 @@
 import asyncio
 import inspect
 import logging
-
-from enum import IntEnum
-from bleak import BleakClient, BLEDevice
+import struct
 from datetime import datetime, timezone
+from enum import IntEnum
+
+from bleak import BleakClient, BLEDevice
+from homeassistant.components import bluetooth
+from homeassistant.components.bluetooth import (
+    BluetoothChange,
+    BluetoothScanningMode,
+    BluetoothServiceInfoBleak,
+)
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
-    SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.components.text import TextEntity
-from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.components import bluetooth
-from homeassistant.components.bluetooth import BluetoothServiceInfoBleak, BluetoothChange, BluetoothScanningMode
-import struct
-
-from homeassistant.helpers.entity import EntityCategory
 
 from .const import DOMAIN
 
