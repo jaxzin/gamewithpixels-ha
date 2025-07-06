@@ -6,9 +6,9 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pixels_dice.sensor import PixelsDiceEntity, PixelsDiceDevice
 
 from .const import DOMAIN
+from .sensor import PixelsDiceEntity
 
 _LOGGER = logging.getLogger(__name__)
 

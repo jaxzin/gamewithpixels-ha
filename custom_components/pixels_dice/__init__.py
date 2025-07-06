@@ -17,7 +17,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug("Setting up Pixels Dice integration")
 
     hass.data.setdefault(DOMAIN, {})
-    
+
     pixels_device = PixelsDiceDevice(
         hass,
         entry.data["name"],

@@ -1,8 +1,10 @@
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 
 from custom_components.pixels_dice.switch import PixelsDiceAutoconnectSwitch
+
 
 @pytest.fixture
 def mock_pixels_device():

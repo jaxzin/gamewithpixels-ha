@@ -1,10 +1,12 @@
-name: Run Tests
+name: Run Tests and Lint
 
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  pull_request_target:
+    types: [opened, synchronize]
 
 jobs:
   build:
@@ -23,3 +25,16 @@ jobs:
 
     - name: Run tests with pytest
       run: uv run pytest
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install uv
+        run: pip install uv
+      - name: Run ruff
+        run: uv run ruff check .
