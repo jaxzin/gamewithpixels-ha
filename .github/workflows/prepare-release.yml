@@ -1,7 +1,7 @@
-# .github/workflows/publish-release.yml
-name: Publish Release
+# .github/workflows/prepare-release.yml
+name: Prepare Release
 
-on:
+on: 
   workflow_dispatch:
     inputs:
       prerelease:
@@ -14,10 +14,11 @@ on:
         required: false
 
 jobs:
-  publish:
+  prepare:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -60,20 +61,14 @@ jobs:
         run: |
           sed -i "s/^version = .*/version = \"${{ steps.version.outputs.number }}\"/" pyproject.toml
 
-      - name: Commit version bump
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
         with:
-          commit_message: "chore: Bump version to ${{ steps.version.outputs.number }}"
-          branch: main
-          file_pattern: 'custom_components/pixels_dice/manifest.json pyproject.toml'
-
-      - name: Publish Release
-        uses: release-drafter/release-drafter@v6
-        with:
-          publish: true
-          tag: ${{ steps.set_version.outputs.tag_name }}
-          name: ${{ steps.set_version.outputs.tag_name }}
-          prerelease: ${{ steps.get_version.outputs.prerelease }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: Bump version to ${{ steps.version.outputs.number }}"
+          branch: "release/${{ steps.set_version.outputs.tag_name }}"
+          title: "Release ${{ steps.set_version.outputs.tag_name }}"
+          body: "This PR was automatically created to release version ${{ steps.set_version.outputs.tag_name }}."
+          labels: "release"
+          draft: false
 
