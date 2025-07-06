@@ -1,17 +1,24 @@
-
 import asyncio
 import logging
 
+from enum import IntEnum
 from bleak import BleakClient, BLEDevice
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.components.button import ButtonEntity
+from datetime import datetime, timezone
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
+)
 from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.text import TextEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.components import bluetooth
-from homeassistant.components.bluetooth import BluetoothServiceInfoBleak, BluetoothChange
+from homeassistant.components.bluetooth import BluetoothServiceInfoBleak, BluetoothChange, BluetoothScanningMode
+import struct
 
 from .const import DOMAIN
 
@@ -21,6 +28,11 @@ _LOGGER = logging.getLogger(__name__)
 PIXEL_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 PIXEL_NOTIFY_CHAR_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 BATTERY_LEVEL_CHAR_UUID = "00002a19-0000-1000-8000-00805f9b34fb"
+
+# Pixel-dice message codes (from DieMessages.ts)
+ROLL_STATE_MESSAGE = 0x03
+REQUEST_BATTERY  = 0x21  # requestBatteryLevel
+BATTERY_MESSAGE  = 0x22  # batteryLevel
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -37,11 +49,12 @@ async def async_setup_entry(
 
     await pixels_device.async_added_to_hass()
 
-    await async_add_entities([
+    async_add_entities([
         PixelsDiceStateSensor(pixels_device),
         PixelsDiceFaceSensor(pixels_device),
-        PixelsDiceBatterySensor(pixels_device),
-        PixelsDicePresenceSensor(pixels_device),
+        PixelsDiceBatteryLevelSensor(pixels_device),
+        PixelsDiceBatteryStateSensor(pixels_device),
+        PixelsDiceLastSeenSensor(pixels_device),
     ])
 
 
@@ -56,25 +69,29 @@ class PixelsDiceDevice:
         self._state = None
         self._face = None
         self._battery_level = None
-        self._is_present = False # New attribute for presence
+        self._battery_state = None
+        self._last_seen = None
         self._listeners = []
         self._unsub_bluetooth_tracker = None # To store the unsubscribe callback
 
     async def async_added_to_hass(self) -> None:
         """Run when this device has been added to Home Assistant."""
-        # Register a Bluetooth callback to track presence
+        # register our BLE‐service callback in ACTIVE mode
         self._unsub_bluetooth_tracker = bluetooth.async_register_callback(
             self.hass,
             self._bluetooth_service_info_callback,
             bluetooth.BluetoothCallbackMatcher(local_name=self.die_name),
+            BluetoothScanningMode.ACTIVE,
         )
 
         # If we have already seen the die, mark it present immediately
-        if bluetooth.async_last_service_info(
+        service_info = bluetooth.async_ble_device_from_address(
             self.hass,
-            bluetooth.BluetoothCallbackMatcher(local_name=self.die_name),
-        ):
-            self._is_present = True
+            self.die_name,
+            connectable=True
+        )
+        if service_info:
+            self._last_seen = datetime.now(timezone.utc)
 
     async def async_will_remove_from_hass(self) -> None:
         """Run when this device is being removed from Home Assistant."""
@@ -84,14 +101,9 @@ class PixelsDiceDevice:
     def _bluetooth_service_info_callback(self, service_info: BluetoothServiceInfoBleak, change: BluetoothChange) -> None:
         """Callback for Bluetooth service info updates."""
         _LOGGER.debug(f"Bluetooth service info callback for {self.die_name}: {change}")
-        if change == BluetoothChange.ADVERTISEMENT_ADDED or change == BluetoothChange.ADVERTISEMENT_UPDATED:
-            if not self._is_present:
-                self._is_present = True
-                self._notify_listeners()
-        elif change == BluetoothChange.ADVERTISEMENT_REMOVED:
-            if self._is_present:
-                self._is_present = False
-                self._notify_listeners()
+        if change == BluetoothChange.ADVERTISEMENT:
+            self._last_seen = datetime.now(timezone.utc)
+            self._notify_listeners()
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -115,7 +127,12 @@ class PixelsDiceDevice:
     def _notify_listeners(self) -> None:
         """Notify all registered listeners of a state change."""
         for listener in self._listeners:
-            listener.schedule_update_ha_state(True)
+            # if it’s an HA Entity, schedule its state update…
+            if hasattr(listener, "schedule_update_ha_state"):
+                    listener.schedule_update_ha_state(True)
+            # …otherwise assume it’s a simple callback and just call it
+            else:
+                listener()
 
     async def async_connect_die(self):
         """Connect to the Pixels die and start listening for notifications."""
@@ -144,7 +161,11 @@ class PixelsDiceDevice:
                 await self._client.start_notify(PIXEL_NOTIFY_CHAR_UUID, self._handle_roll)
                 self._state = "Connected"
                 _LOGGER.info("Listening for rolls...")
-                await self.async_read_battery_level()
+                # Ask the die for its battery percentage
+                await self._client.write_gatt_char(
+                    PIXEL_NOTIFY_CHAR_UUID,
+                    bytes([REQUEST_BATTERY])
+                )
             else:
                 _LOGGER.error("Failed to connect to the die.")
                 self._state = "Connection Failed"
@@ -153,18 +174,6 @@ class PixelsDiceDevice:
             self._state = "Error"
         finally:
             self._notify_listeners()
-
-    async def async_read_battery_level(self):
-        """Read the battery level from the die."""
-        if self._client and self._client.is_connected:
-            try:
-                battery_level_data = await self._client.read_gatt_char(BATTERY_LEVEL_CHAR_UUID)
-                self._battery_level = int(battery_level_data[0])
-                _LOGGER.debug(f"Battery level: {self._battery_level}%")
-            except Exception as e:
-                _LOGGER.error(f"Error reading battery level: {e}")
-        else:
-            _LOGGER.warning("Cannot read battery level, die is not connected.")
 
     async def async_disconnect_die(self):
         """Disconnect from the Pixels die."""
@@ -190,26 +199,47 @@ class PixelsDiceDevice:
 
         message_type = data[0]
 
-        if message_type == 0x03:  # Roll State Message
+        if message_type == ROLL_STATE_MESSAGE:  # Roll State Message
             state_code = data[1]
             face = data[2]
 
-            if state_code == 0x01:  # State: onFace
+            if state_code == 0x01:  # State: rolled
                 self._state = f"Landed: {face + 1}"
                 self._face = face + 1
                 _LOGGER.info(f"--- Die landed! Final face is: {face + 1} ---")
-            elif state_code == 0x03:  # State: handling
+            elif state_code == 0x02:  # State: handling
                 self._state = "Handling"
+                self._face = None
                 _LOGGER.debug("... Handling die ...")
-            elif state_code == 0x05:  # State: rolling
+            elif state_code == 0x03:  # State: rolling
                 self._state = "Rolling"
+                self._face = None
                 _LOGGER.debug("... Rolling ...")
+            elif state_code == 0x04:  # State: crooked
+                self._state = "Crooked"
+                self._face = None
+                _LOGGER.debug("... Crooked ...")
+            elif state_code == 0x05:  # State: onFace
+                self._state = "On Face"
+                self._face = None
+                _LOGGER.debug("... On Face ...")
             else:
                 self._state = f"Unknown state: {data.hex()}"
                 _LOGGER.warning(f"Received unknown roll state: {data.hex()}")
             self._notify_listeners()
+        elif message_type == BATTERY_MESSAGE:
+            self._handle_battery_notify(sender, data)
         else:
             _LOGGER.debug(f"Received unhandled message type: {data.hex()}")
+
+    def _handle_battery_notify(self, sender: int, data: bytearray):
+        """BLE battery‐level notification handler."""
+        # We only care about the first three bytes here:
+        msg_type, level, state = struct.unpack_from("BBB", data)
+        self._battery_level = level
+        self._battery_state = PixelBatteryState(state)
+        _LOGGER.debug("Battery notification: %s%%, %s", level, state)
+        self._notify_listeners()
 
 
 class PixelsDiceEntity:
@@ -265,7 +295,15 @@ class PixelsDiceFaceSensor(PixelsDiceEntity, SensorEntity):
         return self._pixels_device._face
 
 
-class PixelsDiceBatterySensor(PixelsDiceEntity, SensorEntity):
+class PixelBatteryState(IntEnum):
+    ok = 0
+    low = 1
+    charging = 2
+    done = 3
+    badCharging = 4
+    error = 5
+
+class PixelsDiceBatteryLevelSensor(PixelsDiceEntity, SensorEntity):
     """Representation of the Pixels Dice battery sensor."""
 
     def __init__(self, pixels_device: PixelsDiceDevice) -> None:
@@ -273,27 +311,43 @@ class PixelsDiceBatterySensor(PixelsDiceEntity, SensorEntity):
         self._attr_name = f"{pixels_device.die_name} Battery"
         self._attr_unique_id = f"{pixels_device.unique_id}_battery"
         self._attr_native_unit_of_measurement = "%"
-        self._attr_device_class = "battery"
-        self._attr_state_class = "measurement"
+        self._attr_device_class = SensorDeviceClass.BATTERY
+        self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
     def native_value(self):
         """Return the state of the sensor."""
         return self._pixels_device._battery_level
 
-
-class PixelsDicePresenceSensor(PixelsDiceEntity, BinarySensorEntity):
-    """Representation of the Pixels Dice presence sensor."""
+class PixelsDiceBatteryStateSensor(PixelsDiceEntity, TextEntity):
+    """Representation of the Pixels Dice battery charging sensor."""
 
     def __init__(self, pixels_device: PixelsDiceDevice) -> None:
         super().__init__(pixels_device)
-        self._attr_name = f"{pixels_device.die_name} Presence"
-        self._attr_unique_id = f"{pixels_device.unique_id}_presence"
-        self._attr_device_class = "presence"
+        self._attr_name = f"{pixels_device.die_name} Battery State"
+        self._attr_unique_id = f"{pixels_device.unique_id}_battery_state"
 
     @property
-    def is_on(self) -> bool | None:
-        """Return true if the binary sensor is on."""
-        return self._pixels_device._is_present
+    def native_value(self):
+        """Return the state of the sensor."""
+        if self._pixels_device._battery_state is None:
+            return None
 
+        return self._pixels_device._battery_state.name
 
+class PixelsDiceLastSeenSensor(PixelsDiceEntity, SensorEntity):
+    """Sensor that holds the last-seen timestamp of the die."""
+
+    def __init__(self, pixels_device: PixelsDiceDevice):
+        self._pixels_device = pixels_device
+        self._attr_name = f"{pixels_device.die_name} Last Seen"
+        self._attr_unique_id = f"{pixels_device.unique_id}_last_seen"
+        self._attr_native_value = None
+        self._attr_device_class = SensorDeviceClass.TIMESTAMP
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_should_poll = False
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor."""
+        return self._pixels_device._last_seen
