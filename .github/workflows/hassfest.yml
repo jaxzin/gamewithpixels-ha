@@ -9,10 +9,23 @@ on:
       - main
   schedule:
     - cron: "0 0 * * *"
+  workflow_run:
+    workflows: ["Prepare Release"]
+    types:
+      - completed
 
 jobs:
   validate:
     runs-on: "ubuntu-latest"
     steps:
-      - uses: "actions/checkout@v3"
+      - name: Checkout for push/pr
+        if: github.event_name != 'workflow_run'
+        uses: actions/checkout@v4
+
+      - name: Checkout code from triggering workflow
+        if: github.event_name == 'workflow_run'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_sha }}
       - uses: home-assistant/actions/hassfest@master
