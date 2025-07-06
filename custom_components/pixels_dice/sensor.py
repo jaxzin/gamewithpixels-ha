@@ -320,6 +320,7 @@ class PixelsDiceBatteryLevelSensor(PixelsDiceEntity, SensorEntity):
         self._attr_native_unit_of_measurement = "%"
         self._attr_device_class = SensorDeviceClass.BATTERY
         self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def native_value(self):
@@ -333,6 +334,7 @@ class PixelsDiceBatteryStateSensor(PixelsDiceEntity, TextEntity):
         super().__init__(pixels_device)
         self._attr_name = f"{pixels_device.die_name} Battery State"
         self._attr_unique_id = f"{pixels_device.unique_id}_battery_state"
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def native_value(self):
@@ -353,6 +355,7 @@ class PixelsDiceLastSeenSensor(PixelsDiceEntity, SensorEntity):
         self._attr_device_class = SensorDeviceClass.TIMESTAMP
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_should_poll = False
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def native_value(self):
