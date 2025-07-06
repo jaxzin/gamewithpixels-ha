@@ -1,0 +1,75 @@
+# .github/workflows/publish-release.yml
+name: Publish Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 'Create a pre-release version (e.g., v1.2.0b0)'
+        required: true
+        type: boolean
+        default: true
+      override_version:
+        description: 'Optional: Manually specify the version to release (e.g., v1.2.0)'
+        required: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get next version
+        id: get_version
+        uses: release-drafter/release-drafter@v6
+        with:
+          # Only get the next version, don't publish
+          publish: false
+          prerelease: ${{ github.event.inputs.prerelease }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set version
+        id: set_version
+        run: |
+          if [ -n "${{ github.event.inputs.override_version }}" ]; then
+            echo "tag_name=${{ github.event.inputs.override_version }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag_name=${{ steps.get_version.outputs.tag_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Strip "v" prefix from version
+        id: version
+        run: echo "number=${{ steps.set_version.outputs.tag_name#v }}" >> $GITHUB_OUTPUT
+
+      - name: Update version in manifest.json
+        run: |
+          jq --arg version "${{ steps.version.outputs.number }}" '.version = $version' custom_components/pixels_dice/manifest.json > manifest.json.tmp && mv manifest.json.tmp custom_components/pixels_dice/manifest.json
+
+      - name: Update version in pyproject.toml
+        run: |
+          sed -i "s/^version = .*/version = \"${{ steps.version.outputs.number }}\"/" pyproject.toml
+
+      - name: Commit version bump
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: Bump version to ${{ steps.version.outputs.number }}"
+          branch: main
+          file_pattern: 'custom_components/pixels_dice/manifest.json pyproject.toml'
+
+      - name: Publish Release
+        uses: release-drafter/release-drafter@v6
+        with:
+          publish: true
+          tag: ${{ steps.set_version.outputs.tag_name }}
+          name: ${{ steps.set_version.outputs.tag_name }}
+          prerelease: ${{ steps.get_version.outputs.prerelease }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
