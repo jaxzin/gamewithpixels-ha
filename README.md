@@ -4,9 +4,10 @@ This custom component integrates Pixels Dice with Home Assistant, allowing you t
 
 ## Features
 
-*   **Sensor Entity:** Provides a sensor that updates with the current roll state of your Pixels Dice (e.g., "Landed: 1", "Rolling", "Handling").
+*   **Sensor Entities:** Provides sensors for roll state, face value, battery level, battery state, last seen time, and RSSI.
 *   **Presence Binary Sensor:** Indicates when the dice is advertising over Bluetooth. It turns `on` when detected nearby and `off` when out of range.
 *   **Autoconnect Switch:** A switch entity that allows you to control whether Home Assistant should automatically connect to the die when it's detected.
+*   **Connect/Disconnect Buttons:** Provides buttons to manually connect and disconnect from the die.
 *   **Connect/Disconnect Services:** Offers Home Assistant services to manually connect to and disconnect from your Pixels Dice, helping to conserve battery life.
 
 ## Installation (HACS)
@@ -47,6 +48,23 @@ pixels_dice:
   name: "Brian PD6" # Replace with the actual name of your Pixels die
 ```
 
+## Sensors
+
+This integration creates several sensors to monitor your Pixels die:
+
+- **State Sensor:** `sensor.your_die_name_state`
+  - Displays the current state of the die, such as "Connected", "Rolling", "Landed: 6", etc.
+- **Face Sensor:** `sensor.your_die_name_face`
+  - Shows the current face-up value of the die.
+- **Battery Level Sensor:** `sensor.your_die_name_battery`
+  - Reports the battery percentage.
+- **Battery State Sensor:** `sensor.your_die_name_battery_state`
+  - Shows the charging status of the die (e.g., "ok", "charging", "low").
+- **Last Seen Sensor:** `sensor.your_die_name_last_seen`
+  - A timestamp of when the die was last detected by Home Assistant.
+- **RSSI Sensor:** `sensor.your_die_name_rssi`
+  - The Received Signal Strength Indicator (RSSI) in dBm, which indicates how strong the Bluetooth signal is.
+
 ## Autoconnect Switch
 
 This integration creates a switch entity for each Pixels die, named something like `switch.brian_pd6_autoconnect`. This switch controls whether Home Assistant will automatically connect to the die when it comes into Bluetooth range.
@@ -60,6 +78,14 @@ When **Autoconnect** is turned **off**:
 - Home Assistant will still detect the die's presence, but it will not automatically connect.
 - You can still manually connect to the die using the `pixels_dice.connect` service.
 - This is the recommended mode for conserving the die's battery life.
+
+## Connect/Disconnect Buttons
+
+For each die, this integration provides two button entities:
+- **Connect Button:** `button.your_die_name_connect`
+- **Disconnect Button:** `button.your_die_name_disconnect`
+
+These buttons allow you to manually control the Bluetooth connection to your Pixels die. Pressing the "Connect" button will initiate a connection, while the "Disconnect" button will terminate it. This is particularly useful when you have `Autoconnect` turned off but want to temporarily connect to check the die's status or roll it.
 
 ## Services
 
