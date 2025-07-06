@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 
 from enum import IntEnum
@@ -49,13 +50,15 @@ async def async_setup_entry(
 
     await pixels_device.async_added_to_hass()
 
-    async_add_entities([
+    result = async_add_entities([
         PixelsDiceStateSensor(pixels_device),
         PixelsDiceFaceSensor(pixels_device),
         PixelsDiceBatteryLevelSensor(pixels_device),
         PixelsDiceBatteryStateSensor(pixels_device),
         PixelsDiceLastSeenSensor(pixels_device),
     ])
+    if inspect.isawaitable(result):
+        await result
 
 
 class PixelsDiceDevice:
@@ -85,11 +88,15 @@ class PixelsDiceDevice:
         )
 
         # If we have already seen the die, mark it present immediately
-        service_info = bluetooth.async_ble_device_from_address(
-            self.hass,
-            self.die_name,
-            connectable=True
-        )
+        try:
+            service_info = bluetooth.async_last_service_info(
+                self.hass,
+                self.die_name,
+                connectable=True,
+            )
+        except RuntimeError:
+            service_info = None
+
         if service_info:
             self._last_seen = datetime.now(timezone.utc)
 
