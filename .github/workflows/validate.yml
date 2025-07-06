@@ -7,6 +7,8 @@ on:
   pull_request:
     branches:
       - main
+  pull_request_target:
+    types: [opened, synchronize]
   schedule:
     - cron: "0 0 * * *"
   workflow_dispatch:
@@ -17,6 +19,9 @@ jobs:
   validate-hacs:
     runs-on: "ubuntu-latest"
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || '' }}
       - name: HACS validation
         uses: "hacs/action@main"
         with:

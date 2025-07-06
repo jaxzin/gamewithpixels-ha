@@ -5,12 +5,16 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  pull_request_target:
+    types: [opened, synchronize]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || '' }}
     - name: Set up Python
       uses: actions/setup-python@v5
       with:

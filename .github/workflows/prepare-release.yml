@@ -62,17 +62,6 @@ jobs:
         run: |
           sed -i "s/^version = .*/version = \"${{ steps.version.outputs.number }}\"/" pyproject.toml
 
-      - name: Run Tests
-        run: uv run pytest
-
-      - name: HACS Validation
-        uses: hacs/action@main
-        with:
-          category: "integration"
-
-      - name: Hassfest Validation
-        uses: home-assistant/actions/hassfest@master
-
       - name: Create Pull Request
         id: cpr
         uses: peter-evans/create-pull-request@v6
