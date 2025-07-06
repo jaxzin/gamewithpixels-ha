@@ -5,17 +5,28 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
+from .sensor import PixelsDiceDevice
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["sensor", "button"]
+PLATFORMS = ["sensor", "button", "switch"]
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Pixels Dice from a config entry."""
     _LOGGER.debug("Setting up Pixels Dice integration")
 
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = entry.data
+    
+    pixels_device = PixelsDiceDevice(
+        hass,
+        entry.data["name"],
+        entry.unique_id,
+        entry.data.get("autoconnect", False),
+    )
+    hass.data[DOMAIN][entry.unique_id] = pixels_device
+
+    await pixels_device.async_added_to_hass()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

@@ -12,6 +12,7 @@ _LOGGER = logging.getLogger(__name__)
 
 DATA_SCHEMA = vol.Schema({
     vol.Required("name"): str,
+    vol.Optional("autoconnect", default=False): bool,
 })
 
 class PixelsDiceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):

@@ -6,6 +6,7 @@ This custom component integrates Pixels Dice with Home Assistant, allowing you t
 
 *   **Sensor Entity:** Provides a sensor that updates with the current roll state of your Pixels Dice (e.g., "Landed: 1", "Rolling", "Handling").
 *   **Presence Binary Sensor:** Indicates when the dice is advertising over Bluetooth. It turns `on` when detected nearby and `off` when out of range.
+*   **Autoconnect Switch:** A switch entity that allows you to control whether Home Assistant should automatically connect to the die when it's detected.
 *   **Connect/Disconnect Services:** Offers Home Assistant services to manually connect to and disconnect from your Pixels Dice, helping to conserve battery life.
 
 ## Installation (HACS)
@@ -45,6 +46,20 @@ Add the following to your `configuration.yaml` file:
 pixels_dice:
   name: "Brian PD6" # Replace with the actual name of your Pixels die
 ```
+
+## Autoconnect Switch
+
+This integration creates a switch entity for each Pixels die, named something like `switch.brian_pd6_autoconnect`. This switch controls whether Home Assistant will automatically connect to the die when it comes into Bluetooth range.
+
+When **Autoconnect** is turned **on**:
+- Home Assistant will actively listen for the die's Bluetooth advertisements.
+- As soon as the die is detected, Home Assistant will establish a connection.
+- This is useful for instantly capturing roll data but may consume more battery.
+
+When **Autoconnect** is turned **off**:
+- Home Assistant will still detect the die's presence, but it will not automatically connect.
+- You can still manually connect to the die using the `pixels_dice.connect` service.
+- This is the recommended mode for conserving the die's battery life.
 
 ## Services
 
