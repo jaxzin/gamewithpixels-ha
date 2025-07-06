@@ -19,7 +19,8 @@ def mock_pixels_dice_device():
     mock_device._state = None
     mock_device._face = None
     mock_device._battery_level = None
-    mock_device._is_present = False
+    mock_device._battery_state = None
+    mock_device._last_seen = None
     mock_device.async_connect_die = AsyncMock(side_effect=lambda: setattr(mock_device, '_state', 'Connected'))
     mock_device.async_disconnect_die = AsyncMock(side_effect=lambda: setattr(mock_device, '_state', 'Disconnected'))
     mock_device.async_read_battery_level = AsyncMock()
@@ -64,7 +65,7 @@ async def test_setup_entry(hass: HomeAssistant, mock_pixels_dice_device):
 
             mock_pixels_dice_device_class.assert_called_once_with(hass, "Test Die", "test_die_unique_id")
             # Assert that entities are added (this is a simplified check)
-            assert len(hass.states.async_all(SENSOR_DOMAIN)) == 4 # State, Face, Battery, Presence
+            assert len(hass.states.async_all(SENSOR_DOMAIN)) == 5 # State, Face, Battery Level, Battery State, Last Seen
             assert len(hass.states.async_all(BUTTON_DOMAIN)) == 0 # Buttons are in button.py
 
 
@@ -203,4 +204,4 @@ async def test_presence_immediate_on_known_service(hass: HomeAssistant):
         await device.async_added_to_hass()
 
     mock_register.assert_called_once()
-    assert device._is_present
+    assert device._last_seen
