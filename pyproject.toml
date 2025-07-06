@@ -24,6 +24,30 @@ pythonpath = [".", "custom_components"]
 addopts = "--cov=custom_components.pixels_dice --cov-report=term-missing"
 asyncio_mode = "auto"
 
+[tool.ruff]
+# Same as Black.
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+# See https://docs.astral.sh/ruff/rules/ for a full list of rules
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+    "TID", # flake8-tidy-imports
+]
+ignore = [
+    "E501", # line too long, handled by black
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+# Disallow all absolute imports from `custom_components.pixels_dice`
+ban-relative-imports = "all"
+
 [dependency-groups]
 dev = [
     "aiousbwatcher>=1.1.1",
@@ -34,4 +58,5 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "pytest-homeassistant-custom-component>=0.13.236",
     "serial>=0.0.97",
+    "ruff>=0.5.5",
 ]
