@@ -118,8 +118,6 @@ home-assistant.log
 home-assistant.log.*
 ozw_log.txt
 
-# Development files
-custom_components
 
 ### GitHubPages template
 # This .gitignore is appropriate for repositories deployed to GitHub Pages and using

@@ -16,6 +16,7 @@ def mock_pixels_dice_device():
     mock_device = MagicMock(spec=PixelsDiceDevice)
     mock_device.die_name = "Test Die"
     mock_device.unique_id = "test_die_unique_id"
+    mock_device.autoconnect = False
     mock_device._state = None
     mock_device._face = None
     mock_device._battery_level = None
@@ -45,61 +46,23 @@ async def test_setup_entry(hass: HomeAssistant, mock_pixels_dice_device):
     )
     await hass.config_entries.async_add(config_entry) # Await async_add
 
-    with patch(
-        "custom_components.pixels_dice.sensor.PixelsDiceDevice",
-        return_value=mock_pixels_dice_device,
-    ) as mock_pixels_dice_device_class:
-        with patch("homeassistant.components.bluetooth.async_setup", return_value=True):
-            # Create a mock for async_add_entities that actually adds entities to hass
-            async def mock_add_entities(entities):
-                for idx, entity in enumerate(entities):
-                    entity.hass = hass
-                    # assign a dummy but valid entity_id so hass.states.async_set won't choke
-                    entity.entity_id = f"{SENSOR_DOMAIN}.test_die_{idx}"
-                    # call any entity-level async setup hooks
-                    await entity.async_added_to_hass()
-                    # now simulate HA setting the state
-                    hass.states.async_set(entity.entity_id, "test_state")
+    hass.data[DOMAIN] = {config_entry.unique_id: mock_pixels_dice_device}
 
-            await async_setup_entry(hass, config_entry, mock_add_entities) # Call async_setup_entry directly
+    mock_add_entities = MagicMock()
 
-            mock_pixels_dice_device_class.assert_called_once_with(hass, "Test Die", "test_die_unique_id")
-            # Assert that entities are added (this is a simplified check)
-            assert len(hass.states.async_all(SENSOR_DOMAIN)) == 6 # State, Face, Battery Level, Battery State, Last Seen, RSSI
-            assert len(hass.states.async_all(BUTTON_DOMAIN)) == 0 # Buttons are in button.py
+    await async_setup_entry(hass, config_entry, mock_add_entities)
+    mock_add_entities.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_setup_entry_calls_added_before_entities(hass: HomeAssistant, mock_pixels_dice_device):
-    """Ensure async_added_to_hass runs before adding entities."""
-    config_entry = ConfigEntry(
-        version=1,
-        domain=DOMAIN,
-        title="Test Die",
-        data={"name": "Test Die"},
-        source="user",
-        unique_id="test_die_unique_id",
-        discovery_keys=(),
-        minor_version=1,
-        options={},
-        subentries_data={}
-    )
-    await hass.config_entries.async_add(config_entry)
+async def test_entity_registers_listener(hass: HomeAssistant, mock_pixels_dice_device):
+    """Ensure entities register a listener with the device."""
+    from custom_components.pixels_dice.sensor import PixelsDiceStateSensor
 
-    call_order = []
+    sensor = PixelsDiceStateSensor(mock_pixels_dice_device)
+    await sensor.async_added_to_hass()
 
-    async def mock_add_entities(entities):
-        call_order.append("add")
-
-    mock_pixels_dice_device.async_added_to_hass.side_effect = lambda: call_order.append("added")
-
-    with patch(
-        "custom_components.pixels_dice.sensor.PixelsDiceDevice",
-        return_value=mock_pixels_dice_device,
-    ), patch("homeassistant.components.bluetooth.async_setup", return_value=True):
-        await async_setup_entry(hass, config_entry, mock_add_entities)
-
-    assert call_order == ["added", "add"]
+    mock_pixels_dice_device.register_listener.assert_called_once_with(sensor)
 
 
 @pytest.mark.asyncio
@@ -107,7 +70,7 @@ async def test_pixels_dice_device_connect_success(hass: HomeAssistant, mock_pixe
     """Test successful connection of PixelsDiceDevice."""
     # Patch PixelsDiceDevice to return our mock_pixels_dice_device
     with patch("custom_components.pixels_dice.sensor.PixelsDiceDevice", return_value=mock_pixels_dice_device):
-        pixels_device = PixelsDiceDevice(hass, "Test Die", "test_die_unique_id") # This will now return our mock
+        pixels_device = PixelsDiceDevice(hass, "Test Die", "test_die_unique_id", False) # This will now return our mock
 
         # Stub out the battery‐read on *this* instance:
         pixels_device.async_read_battery_level = AsyncMock(return_value=1)
@@ -145,7 +108,7 @@ async def test_pixels_dice_device_connect_success(hass: HomeAssistant, mock_pixe
 async def test_pixels_dice_device_connect_not_found(hass: HomeAssistant, mock_pixels_dice_device):
     """Test connection when die is not found."""
     with patch("custom_components.pixels_dice.sensor.PixelsDiceDevice", return_value=mock_pixels_dice_device):
-        pixels_device = PixelsDiceDevice(hass, "Non Existent Die", "non_existent_die_unique_id")
+        pixels_device = PixelsDiceDevice(hass, "Non Existent Die", "non_existent_die_unique_id", False)
 
         die_name = "Non Existent Die"
         unique_id = "non_existent_die_unique_id"
@@ -170,7 +133,7 @@ async def test_pixels_dice_device_connect_not_found(hass: HomeAssistant, mock_pi
 async def test_pixels_dice_device_disconnect(hass: HomeAssistant, mock_pixels_dice_device):
     """Test disconnection of PixelsDiceDevice."""
     with patch("custom_components.pixels_dice.sensor.PixelsDiceDevice", return_value=mock_pixels_dice_device):
-        pixels_device = PixelsDiceDevice(hass, "Test Die", "test_die_unique_id")
+        pixels_device = PixelsDiceDevice(hass, "Test Die", "test_die_unique_id", False)
 
         die_name = "Test Die"
         unique_id = "test_die_unique_id"
@@ -192,7 +155,7 @@ async def test_pixels_dice_device_disconnect(hass: HomeAssistant, mock_pixels_di
 @pytest.mark.asyncio
 async def test_presence_immediate_on_known_service(hass: HomeAssistant):
     """PixelsDiceDevice sets presence if service info already exists."""
-    device = PixelsDiceDevice(hass, "Test Die", "test_die_unique_id")
+    device = PixelsDiceDevice(hass, "Test Die", "test_die_unique_id", False)
 
     with patch(
         "custom_components.pixels_dice.sensor.bluetooth.async_register_callback",

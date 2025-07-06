@@ -43,14 +43,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Pixels Dice sensor platform."""
-    _LOGGER.debug("Setting up Pixels Dice sensor platform from config entry")
-    die_name = config_entry.data["name"]
-    unique_id = config_entry.unique_id
-
-    pixels_device = PixelsDiceDevice(hass, die_name, unique_id)
-    hass.data.setdefault(DOMAIN, {})[unique_id] = pixels_device
-
-    await pixels_device.async_added_to_hass()
+    pixels_device = hass.data[DOMAIN][config_entry.unique_id]
 
     result = async_add_entities([
         PixelsDiceStateSensor(pixels_device),
@@ -67,10 +60,11 @@ async def async_setup_entry(
 class PixelsDiceDevice:
     """Manages the Pixels Dice BLE connection and state."""
 
-    def __init__(self, hass: HomeAssistant, die_name: str, unique_id: str) -> None:
+    def __init__(self, hass: HomeAssistant, die_name: str, unique_id: str, autoconnect: bool) -> None:
         self.hass = hass
         self.die_name = die_name
         self.unique_id = unique_id
+        self.autoconnect = autoconnect
         self._client = None
         self._state = None
         self._face = None
@@ -117,6 +111,9 @@ class PixelsDiceDevice:
             # update RSSI from advertisement
             self._rssi = service_info.rssi
             self._notify_listeners()
+
+            if self.autoconnect and not (self._client and self._client.is_connected):
+                asyncio.create_task(self.async_connect_die())
 
     @property
     def device_info(self) -> DeviceInfo:
