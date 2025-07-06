@@ -1122,7 +1122,7 @@ wheels = [
 
 [[package]]
 name = "gamewithpixels-ha"
-version = "1.1.0b4"
+version = "1.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "bleak" },

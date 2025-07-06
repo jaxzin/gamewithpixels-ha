@@ -65,7 +65,7 @@ async def test_setup_entry(hass: HomeAssistant, mock_pixels_dice_device):
 
             mock_pixels_dice_device_class.assert_called_once_with(hass, "Test Die", "test_die_unique_id")
             # Assert that entities are added (this is a simplified check)
-            assert len(hass.states.async_all(SENSOR_DOMAIN)) == 5 # State, Face, Battery Level, Battery State, Last Seen
+            assert len(hass.states.async_all(SENSOR_DOMAIN)) == 6 # State, Face, Battery Level, Battery State, Last Seen, RSSI
             assert len(hass.states.async_all(BUTTON_DOMAIN)) == 0 # Buttons are in button.py
 
 
@@ -205,3 +205,26 @@ async def test_presence_immediate_on_known_service(hass: HomeAssistant):
 
     mock_register.assert_called_once()
     assert device._last_seen
+
+
+def test_rssi_sensor_native_value(mock_pixels_dice_device):
+    """Test that the RSSI sensor reports the device's RSSI and metadata."""
+    from custom_components.pixels_dice.sensor import PixelsDiceRSSISensor
+    from homeassistant.helpers.entity import EntityCategory
+    from homeassistant.components.sensor import SensorDeviceClass
+
+    # Given a mock device with a specific RSSI value
+    mock_pixels_dice_device._rssi = -72
+
+    # When we instantiate the RSSI sensor
+    sensor = PixelsDiceRSSISensor(mock_pixels_dice_device)
+
+    # Then native_value should reflect the device's RSSI
+    assert sensor.native_value == -72
+
+    # And the sensor should be marked as diagnostic
+    assert sensor._attr_entity_category == EntityCategory.DIAGNOSTIC
+
+    # And it should use the correct device class and unit
+    assert sensor._attr_device_class == SensorDeviceClass.SIGNAL_STRENGTH
+    assert sensor._attr_native_unit_of_measurement == "dBm"
