@@ -1,6 +1,6 @@
 # .github/release-drafter.yml
-name-template: '$NEXT_PATCH_VERSION'
-tag-template: '$NEXT_PATCH_VERSION'
+name-template: 'v$NEXT_PATCH_VERSION'
+tag-template: 'v$NEXT_PATCH_VERSION'
 version-template: '$MAJOR.$MINOR.$PATCH'
 prerelease-version-template: '$MAJOR.$MINOR.$PATCHb$ITERATION'
 categories:
@@ -27,8 +27,10 @@ categories:
       - 'ci'
 change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
 template: |
-  ## Changes
-
+  ## What's Changed
   $CHANGES
 
-  Thanks to all contributors!
+  ## New Contributors
+  $CONTRIBUTORS
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$NEXT_PATCH_VERSION
