@@ -48,7 +48,9 @@ jobs:
       
       - name: Strip "v" prefix from version
         id: version
-        run: echo "number=${{ steps.set_version.outputs.tag_name#v }}" >> $GITHUB_OUTPUT
+        run: |
+          TAG_NAME="${{ steps.set_version.outputs.tag_name }}"
+          echo "number=${TAG_NAME#v}" >> $GITHUB_OUTPUT
 
       - name: Update version in manifest.json
         run: |
