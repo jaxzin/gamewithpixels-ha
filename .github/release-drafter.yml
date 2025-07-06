@@ -1,5 +1,5 @@
 # .github/release-drafter.yml
-name-template: 'v$NEXT_PATCH_VERSION'
+name-template: 'Next Release'
 tag-template: 'v$NEXT_PATCH_VERSION'
 version-template: '$MAJOR.$MINOR.$PATCH'
 prerelease-version-template: '$MAJOR.$MINOR.$PATCHb$ITERATION'
