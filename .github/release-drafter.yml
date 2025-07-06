@@ -2,8 +2,7 @@
 name-template: '$NEXT_PATCH_VERSION'
 tag-template: '$NEXT_PATCH_VERSION'
 version-template: '$MAJOR.$MINOR.$PATCH'
-prerelease:
-  version-template: '$MAJOR.$MINOR.$PATCHb$ITERATION'
+prerelease-version-template: '$MAJOR.$MINOR.$PATCHb$ITERATION'
 categories:
   - title: '🚀 Features'
     labels:
