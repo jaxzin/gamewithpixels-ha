@@ -10,14 +10,14 @@ from homeassistant.const import (
     CONF_ENTITY_ID,
     CONF_PLATFORM,
 )
-
-CONF_FROM = "from"
-CONF_TO = "to"
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import DOMAIN
+
+CONF_FROM = "from"
+CONF_TO = "to"
 
 TRIGGER_TYPES: Final = {"face", "state"}
 
