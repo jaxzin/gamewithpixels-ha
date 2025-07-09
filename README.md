@@ -9,6 +9,7 @@ This custom component integrates Pixels Dice with Home Assistant, allowing you t
 *   **Autoconnect Switch:** A switch entity that allows you to control whether Home Assistant should automatically connect to the die when it's detected.
 *   **Connect/Disconnect Buttons:** Provides buttons to manually connect and disconnect from the die.
 *   **Connect/Disconnect Services:** Offers Home Assistant services to manually connect to and disconnect from your Pixels Dice, helping to conserve battery life.
+*   **Device Triggers:** Rolling state and face value are available as device triggers for automations.
 
 ## Installation (HACS)
 
@@ -64,6 +65,10 @@ This integration creates several sensors to monitor your Pixels die:
   - A timestamp of when the die was last detected by Home Assistant.
 - **RSSI Sensor:** `sensor.your_die_name_rssi`
   - The Received Signal Strength Indicator (RSSI) in dBm, which indicates how strong the Bluetooth signal is.
+
+## Device Triggers
+
+Face and state sensors appear as device triggers so you can easily create automations for specific roll values or states without referencing entity IDs.
 
 ## Autoconnect Switch
 
